@@ -1,0 +1,22 @@
+1. Top-Left Panel: ⓵ Filled Ball
+What it shows: A solid 3D sphere rendered out of individual points (voxels) on a 3D coordinate grid [1].
+The Interpretation: This is your source volume or target object. In a simulation, this represents the actual physical matter you are testing—such as a tumor, a kidney stone, or a solid metal part. It tells the computer exactly where the object's physical mass exists in 3D space.
+2. Top-Right Panel: ⓶ Surface Shell
+What it shows: The exact same sphere from the first panel, but completely hollowed out so only the outer skin remains [1].
+The Interpretation: In wave physics and acoustics software, this represents the sensor mask or transducer array [1]. It defines the precise boundary where waves either start or stop. If you were modeling a medical ultrasound scan, this shell tells the computer exactly where to place the virtual microphone sensors to listen to incoming echoes.
+3. Bottom-Left Panel: ⓷ XY Slice at depth=25
+What it shows: A 2D cross-section cut right through the middle of your 3D space, showing a red-to-blue temperature/pressure heatmap with a yellow dotted boundary line [1].
+The Interpretation: This is your material property or wave intensity map. The yellow line proves your code knows exactly where the boundary of the sphere is on a 2D plane. The smooth gradient background shows that the physical properties (like density, sound speed, or initial acoustic pressure) change smoothly across the space rather than cutting off instantly.
+4. Bottom-Right Panel: ⓸ Octree Cells Inside vs Outside Sphere
+What it shows: The entire 3D space broken down into an adaptive point cloud, color-coded with red dots inside the sphere shape and cyan dots outside [1].
+The Interpretation: This is your computational efficiency map. It proves that your Octree algorithm is sorting the data correctly [1]. It shows that the computer successfully separates the environment into two distinct zones: the target zone (red) and the surrounding background environment (cyan) [1].
+Summary of What They Say To You Together
+When you look at all four panels at once, they tell you: "Your geometric environment is perfectly set up."
+The code has successfully taken a mathematical idea of a sphere, built its volume (1), isolated its outer boundaries (2), calculated its cross-sectional properties (3), and optimized the tracking grid (4) so you can run a fast, bug-free wave simulation [1].
+What is the next step in your development? I can help you with:
+Setting up the acoustic properties (like density or speed of sound) for the red vs. cyan zones.
+Writing the code to launch a wave from that surface shell.
+Replacing the basic sphere with an irregular geometric shape (like a skull or organ).
+
+
+@look at 3-d_fig1.png for reference
