@@ -12,7 +12,7 @@ This approach reduces computational complexity while preserving detail in import
 
 ---
 
-## Motivation
+
 
 Traditional fixed-resolution grids allocate equal computational resources to all regions regardless of complexity.
 
@@ -33,9 +33,7 @@ The method is inspired by Adaptive Mesh Refinement (AMR) techniques used in:
 
 ---
 
-## Methodology
 
-### Step 1: Input Matrix
 
 The algorithm starts with an intensity matrix.
 
