@@ -137,10 +137,10 @@ ax1.scatter(xf, yf, zf,
 
 ax1.set_title('① Filled Ball\n(k-Wave makeBall style)',
               color='white', fontsize=11, pad=8)
-ax1.set_xlabel('X [voxels]', color='#aaaaaa', fontsize=8)
-ax1.set_ylabel('Y [voxels]', color='#aaaaaa', fontsize=8)
-ax1.set_zlabel('Z [voxels]', color='#aaaaaa', fontsize=8)
-ax1.tick_params(colors='#aaaaaa', labelsize=7)
+ax1.set_xlabel('X [voxels]', color='#ffffff', fontsize=9)
+ax1.set_ylabel('Y [voxels]', color='#ffffff', fontsize=9)
+ax1.set_zlabel('Z [voxels]', color='#ffffff', fontsize=9)
+ax1.tick_params(colors='#ffffff', labelsize=8)
 
 # ── Panel 2 : SURFACE SHELL — Image 2 style ──────────────────
 ax2 = fig.add_subplot(2, 2, 2, projection='3d')
@@ -155,10 +155,10 @@ ax2.scatter(sp[:, 0], sp[:, 1], sp[:, 2],
 
 ax2.set_title('② Surface Shell\n(k-Wave sensor mask style)',
               color='white', fontsize=11, pad=8)
-ax2.set_xlabel('X [voxels]', color='#aaaaaa', fontsize=8)
-ax2.set_ylabel('Y [voxels]', color='#aaaaaa', fontsize=8)
-ax2.set_zlabel('Z [voxels]', color='#aaaaaa', fontsize=8)
-ax2.tick_params(colors='#aaaaaa', labelsize=7)
+ax2.set_xlabel('X [voxels]', color='#ffffff', fontsize=9)
+ax2.set_ylabel('Y [voxels]', color='#ffffff', fontsize=9)
+ax2.set_zlabel('Z [voxels]', color='#ffffff', fontsize=9)
+ax2.tick_params(colors='#ffffff', labelsize=8)
 
 # ── Panel 3 : XY slice with sphere boundary ──────────────────
 pd0, pr0, pc0 = cz, cx, cy   # slice through sphere centre
@@ -185,13 +185,13 @@ ax3.plot(circ_x, circ_y,
          color='yellow', linewidth=2.0,
          linestyle='--', label='Sphere boundary')
 
-ax3.legend(fontsize=7, labelcolor='white',
+ax3.legend(fontsize=9, labelcolor='white',
            facecolor='#1a1a2e', framealpha=0.7)
 ax3.set_title(f'③ XY Slice at depth={pd0} + Sphere Boundary\nRed=inside sphere  White=outside',
               color='white', fontsize=11, pad=8)
-ax3.set_xlabel('Column', color='#aaaaaa')
-ax3.set_ylabel('Row',    color='#aaaaaa')
-ax3.tick_params(colors='#aaaaaa')
+ax3.set_xlabel('Column', color='#ffffff', fontsize=9)
+ax3.set_ylabel('Row',    color='#ffffff', fontsize=9)
+ax3.tick_params(colors='#ffffff', labelsize=8)
 
 # ── Panel 4 : 3D octree coloured by inside/outside sphere ────
 ax4 = fig.add_subplot(2, 2, 4, projection='3d')
@@ -209,8 +209,8 @@ for (r, c, d, h, w, dp) in sample:
     cy_cell = r + h/2
     cz_cell = d + dp/2
 
-    # check if cell centre is inside sphere
-    cell_dist = np.sqrt((cy_cell-cx)**2 + (cx_cell-cy)**2 + (cz_cell-cz)**2)
+    # check if cell centre is inside sphere (correct axis correspondence)
+    cell_dist = np.sqrt((cx_cell - cx)**2 + (cy_cell - cy)**2 + (cz_cell - cz)**2)
 
     if cell_dist <= radius:
         inside_x.append(cx_cell)
@@ -240,11 +240,11 @@ ax4.plot_wireframe(sx, sy, sz,
 
 ax4.set_title('④ Octree Cells Inside vs Outside Sphere\nRed=inside  Cyan=outside',
               color='white', fontsize=11, pad=8)
-ax4.set_xlabel('Col',   color='#aaaaaa', fontsize=8)
-ax4.set_ylabel('Row',   color='#aaaaaa', fontsize=8)
-ax4.set_zlabel('Depth', color='#aaaaaa', fontsize=8)
-ax4.tick_params(colors='#aaaaaa', labelsize=7)
-ax4.legend(fontsize=7, labelcolor='white',
+ax4.set_xlabel('Col',   color='#ffffff', fontsize=9)
+ax4.set_ylabel('Row',   color='#ffffff', fontsize=9)
+ax4.set_zlabel('Depth', color='#ffffff', fontsize=9)
+ax4.tick_params(colors='#ffffff', labelsize=8)
+ax4.legend(fontsize=9, labelcolor='white',
            facecolor='#1a1a2e', framealpha=0.7)
 
 # formatting
@@ -260,12 +260,13 @@ for ax in [ax3]:
     for spine in ax.spines.values():
         spine.set_edgecolor('#333355')
 
+# place suptitle and adjust margins so nothing is clipped
 fig.suptitle(
     f"k-Wave Style Sphere Structures + 3D Octree  |  "
     f"{rows}×{cols}×{deps}  |  r={radius}  |  "
     f"Filled={filled_ball.sum()}  Surface={len(surface_points)}",
-    color='white', fontsize=13, y=1.01
+    color='white', fontsize=11, y=0.94
 )
+fig.subplots_adjust(top=0.88, left=0.06, right=0.98, hspace=0.36, wspace=0.28)
 
-plt.tight_layout()
 plt.show()
