@@ -1,0 +1,94 @@
+# Technical Documentation: Adaptive Grid & Kalman Filter Localization Engine
+
+This document details the architecture and operational mechanics of combining an **Adaptive Grid Mesh (Quadtree Subdivision)** with a **2D Linear Kalman Filter** to build a geographic vehicle tracking system modeled after the **IISER Mohali** campus layout.
+
+---
+
+## 1. System Architecture Overview
+
+When tracking objects in real-world scenarios, systems face a constant trade-off between **accuracy** and **computational efficiency**. Processing a high-resolution canvas across a vast map at every millisecond is incredibly wasteful. 
+
+Our hybrid architecture solves this by marrying two core concepts:
+* **The Kalman Filter (Temporal Component):** Smooths out unpredictable, erratic sensor readings (GPS noise) over time by balancing the laws of physics against incoming data.
+* **The Adaptive Quadtree Grid (Spatial Component):** Maximizes computational efficiency by varying map resolution dynamically. It uses massive, coarse blocks for empty space and tiny, high-precision blocks exclusively around the vehicle's estimated track.
+
+---
+
+## 2. Component Breakdowns
+
+### Component A: The 2D Kalman Filter (The Tracker)
+The vehicle's movement model is governed by a continuous state framework that relies on a **Constant Velocity Kinematic Model**.
+
+#### 1. Mathematical Formulation
+The filter tracks the vehicle using a 4-dimensional state vector $X$, which isolates instantaneous positioning alongside spatial degree velocities:
+
+$$X = \begin{bmatrix} x \\ y \\ v_x \\ v_y \end{bmatrix}$$
+
+Where $x$ represents Longitude and $y$ represents Latitude.
+
+#### 2. The Loop Operations
+The filter processes incoming telemetry inside a high-speed prediction-correction recursion loop:
+
+* **The Prediction Stage:** Projects the vehicle's position forward into the next time step based purely on Newtonian physics:
+  $$X_{k\mid k-1} = F X_{k-1}$$
+  $$P_{k\mid k-1} = F P_{k-1} F^T + Q$$
+  Where $F$ is the state transition matrix, $P$ is the system error covariance matrix, and $Q$ is the **Process Noise** (accounting for unpredictable driver behaviors like sharp braking or turning near the **Lecture Hall Complex**).
+
+* **The Update Stage:** Corrects the physics prediction by incorporating the noisy raw GPS coordinate ($Z$):
+  $$K_k = P_{k\mid k-1} H^T (H P_{k\mid k-1} H^T + R)^{-1}$$
+  $$X_k = X_{k\mid k-1} + K_k (Z_k - H X_{k\mid k-1})$$
+  $$P_k = (I - K_k H) P_{k\mid k-1}$$
+  Where $H$ maps our state to the measurement variables, $K$ represents the **Kalman Gain**, and $R$ is the **Measurement Noise Covariance** (modelling GPS signal degradation caused by tall concrete barriers like the **Academic Blocks**).
+
+---
+
+### Component B: The Adaptive Quadtree Grid (The Lens)
+Instead of relying on a rigid, memory-heavy uniform grid over the campus, the spatial grid uses recursive quadtree decomposition centered entirely on the output coordinates provided by the Kalman filter ($X_k$).
+
+Level 0: Root             Level 1: First Split          Level 2: Target Subdivided
+┌───────────────────┐     ┌─────────┬─────────┐         ┌─────────┬────┬────┐
+│                   │     │         │         │         │         │    │    │
+│                   │     │   NW    │   NE    │         │   NW    ├────┼────┤
+│                   │     │         │         │         │         │    │    │
+│       Total       │  ─► ├─────────┼─────────┤  ─►     ├─────────┼────┴────┤
+│    Campus Area    │     │         │         │         │         │         │
+│                   │     │   SW    │   SE    │         │   SW    │   SE    │
+│                   │     │         │         │         │         │         │
+└───────────────────┘     └─────────┴─────────┘         └─────────┴─────────┘
+(Target Located NW)
+
+
+#### The Subdivision Rules:
+1. **Intensity Mapping:** A localized Gaussian function treats the Kalman filter's position estimation as the center of a "heat signature" on the map.
+2. **Variance Evaluation:** The algorithm isolates a bounding block. If the structural intensity variation ($\text{Maximum Heat} - \text{Minimum Heat}$) within that block breaks a defined `THRESHOLD`, the spatial segment is sliced into four equal quadrants: **North-West (NW), North-East (NE), South-West (SW), and South-East (SE)**.
+3. **Termination Condition:** This subdivision runs recursively until the localized variation stabilizes below the threshold, or the blocks hit a minimum unit limit (`MIN_SIZE`).
+
+---
+
+## 3. Real-World Tracking Scenarios: Step-by-Step
+
+Here is how the combined system handles real environmental tracking edge-cases across the **IISER Mohali** campus layout:
+
+### Scenario 1: Driving Past the Open Fields (Main Gate to Library Junction)
+* **Environment:** Wide open road, high speed, clear line-of-sight to satellites.
+* **Telemetry Data:** The incoming red GPS dots are steady, crisp, and neatly aligned with the pavement corridor.
+* **Filter Actions:** Because the raw inputs perfectly match the velocity model, the Kalman Filter's gain $K$ shifts confidence toward the prediction engine. The tracking path stays exceptionally smooth.
+* **Grid Actions:** Because the vehicle maintains a steady trajectory, the spatial heat cloud remains moderately distributed. The quadtree generates mid-sized bounding blocks, maintaining low memory usage.
+
+### Scenario 2: Negotiating Dense Structures (Academic Blocks to Hostel 8)
+* **Environment:** Sharp turns, heavy foliage, and multi-story concrete structures.
+* **Telemetry Data:** The raw GPS readings degrade rapidly due to multipath signal reflection. Red coordinates jitter wildly, erratically jumping into nearby campus lawns and buildings.
+* **Filter Actions:** The Kalman filter calculates that a vehicle cannot physically teleport $25\text{ meters}$ sideways into a building courtyard in a fraction of a second. It suppresses the measurement noise matrix ($R$), overriding the erratic red pings to keep the green tracking cursor pinned to the actual roadway.
+* **Grid Actions:** As the vehicle executes a complex turn, spatial intensity variance within that sector spikes violently. The quadtree instantly triggers maximum recursion, breaking the local coordinates down into a dense, high-resolution grid layout to frame the turn with maximum spatial resolution.
+
+---
+
+## 4. Architectural Comparison
+
+| Core Feature Matrix | Code 1: Concept Simulation | Code 2 & 3: Geo-Anchored Campus Tracker |
+| :--- | :--- | :--- |
+| **Coordinate System** | Unitless Pixel Array ($0 \text{ to } 100$) | True Geodesic Coordinates ($^\circ\text{East Longitude}, ^\circ\text{North Latitude}$) |
+| **Trajectory Framework** | Perfect Mathematical Circle | Segmented Polygon Loop mapped to actual campus pathways |
+| **Contextual Awareness** | Pure mathematical abstraction | Deeply integrated with fixed geographic landmarks (**LHC, Hostels, Sports Complex**) |
+| **HUD Feedback Metric** | Raw array location intensity values | Multi-axis transformation rendering distances directly in **meters** |
+| **Grid Boundary Method** | Rigid matrix row/column slices | Floating-point interpolation mapped to geographic bounding zones |
