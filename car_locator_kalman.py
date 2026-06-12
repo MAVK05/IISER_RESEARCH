@@ -156,8 +156,6 @@ def init_anim():
     return line_true, line_kf, scatter_meas, point_true, point_kf
 
 def update_frame(frame):
-    global rect_patches
-    
     # 1. Clear out old quadtree rectangles from previous visual updates
     for patch in rect_patches:
         patch.remove()

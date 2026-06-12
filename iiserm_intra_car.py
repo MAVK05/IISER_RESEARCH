@@ -171,8 +171,6 @@ def run_init():
     return line_route, line_track, scatter_gps, car_cursor, status_hud
 
 def advance_simulation(frame):
-    global mesh_patches
-    
     # Sweep out previous iteration rectangles
     for patch in mesh_patches:
         patch.remove()
