@@ -1,0 +1,6 @@
+name: iiser_test_env
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pytest
