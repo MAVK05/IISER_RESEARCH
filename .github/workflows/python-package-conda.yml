@@ -21,7 +21,7 @@ jobs:
         auto-update-conda: true
         python-version: '3.10'
         activate-environment: base
-        environment-file: ${{ github.workspace }}/environment.yml
+        environment-file: environment.yml
 
     # 3. Lint with flake8
     - name: Lint with flake8
