@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 (registers the 3d projection)
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -63,6 +64,14 @@ class IISERMohaliConfig:
 
     GPS_ERROR_DEG = 0.00012        # ~ +/-12m GPS jitter (more realistic than the original 0.0003 ~30m)
     NUM_LAPS = 2
+
+    # --- Adaptive 3D confidence-grid settings ---
+    GRID_SIGMA_MULT = 4.0     # grid half-extent = this many std-devs of the PF's belief
+    GRID_MIN_EXTENT_M = 6.0   # never shrink the grid below this radius (m)
+    GRID_MAX_EXTENT_M = 60.0  # never grow the grid beyond this radius (m)
+    GRID_MIN_RES = 12         # coarsest grid resolution (points per axis)
+    GRID_MAX_RES = 45         # finest grid resolution (points per axis), used when confident
+    GRID_COV_EPS_M2 = 1.0     # regularization added to covariance so it's always invertible
 
 
 class IISERMohaliCampus:
@@ -302,6 +311,48 @@ def build_patrol_route(num_laps=2, steps_per_segment=15):
     return np.array(lats), np.array(lons)
 
 
+def compute_adaptive_confidence_grid(pf, config):
+    """
+    Build a 3D 'confidence hill' directly from the particle filter's real
+    weighted covariance -- not a cosmetic overlay.
+
+    Returns (XX, YY, ZZ, extent_m, resolution, particle_offsets_m) where:
+      XX, YY : meshgrid of local East/North offsets from the mean, in meters
+      ZZ     : confidence height = multivariate-Gaussian pdf shape, exp(-1/2 * v^T Sigma^-1 v)
+      extent_m, resolution : the adaptive grid parameters actually used this frame
+      particle_offsets_m : the real particles' (east, north) offsets in meters,
+                            for scattering onto the plot as ground truth of the belief
+    """
+    mean_lon, mean_lat = pf.X[0, 0], pf.X[1, 0]
+
+    diffs_deg = pf.particles[:, :2] - np.array([mean_lon, mean_lat])
+    diffs_m = np.column_stack([
+        diffs_deg[:, 0] * config.M_PER_DEG_LON,
+        diffs_deg[:, 1] * config.M_PER_DEG_LAT,
+    ])
+
+    w = pf.weights
+    # weighted covariance of the actual particle cloud (meters^2)
+    cov = (diffs_m * w[:, None]).T @ diffs_m
+    cov += np.eye(2) * config.GRID_COV_EPS_M2  # keep it invertible even if particles collapse
+
+    eigvals = np.linalg.eigvalsh(cov)
+    sigma_max_m = np.sqrt(max(eigvals.max(), 1e-6))
+
+    extent_m = np.clip(config.GRID_SIGMA_MULT * sigma_max_m, config.GRID_MIN_EXTENT_M, config.GRID_MAX_EXTENT_M)
+    # denser grid as the belief tightens (extent shrinks) -> visually "more accurate"
+    frac_tight = 1.0 - (extent_m - config.GRID_MIN_EXTENT_M) / (config.GRID_MAX_EXTENT_M - config.GRID_MIN_EXTENT_M)
+    resolution = int(config.GRID_MIN_RES + frac_tight * (config.GRID_MAX_RES - config.GRID_MIN_RES))
+
+    inv_cov = np.linalg.inv(cov)
+    axis = np.linspace(-extent_m, extent_m, resolution)
+    XX, YY = np.meshgrid(axis, axis)
+    quad = (inv_cov[0, 0] * XX**2 + 2 * inv_cov[0, 1] * XX * YY + inv_cov[1, 1] * YY**2)
+    ZZ = np.exp(-0.5 * quad)  # normalized 0..1 confidence height, peak = 1 at the mean
+
+    return XX, YY, ZZ, extent_m, resolution, diffs_m
+
+
 def car_marker(heading_deg):
     """A simple triangular 'car' marker rotated to face its direction of travel."""
     return MarkerStyle('^', transform=Affine2D().rotate_deg(heading_deg - 90))
@@ -341,9 +392,10 @@ def create_iiser_car_simulation(config=IISERMohaliConfig, save_path=None):
     fig.patch.set_facecolor('#0a0e27')
     fig.suptitle('IISER Mohali Campus - Car Patrol Tracking Simulation', fontsize=16, fontweight='bold', color='#00ff88')
 
-    ax_map = plt.subplot2grid((2, 2), (0, 0), rowspan=2)
-    ax_error = plt.subplot2grid((2, 2), (0, 1))
-    ax_info = plt.subplot2grid((2, 2), (1, 1))
+    ax_map = plt.subplot2grid((2, 3), (0, 0), rowspan=2)
+    ax_error = plt.subplot2grid((2, 3), (0, 1))
+    ax_info = plt.subplot2grid((2, 3), (0, 2))
+    ax_grid3d = plt.subplot2grid((2, 3), (1, 1), colspan=2, projection='3d')
 
     ax_map.set_facecolor('#0a0e27')
     ax_map.set_title('Live Campus Tracking Map', color='#00ff88', fontweight='bold', fontsize=12)
@@ -360,9 +412,9 @@ def create_iiser_car_simulation(config=IISERMohaliConfig, save_path=None):
     ax_map.plot(true_lons, true_lats, color='#00bfff', linestyle='--', linewidth=1.2, alpha=0.35,
                 label='Road Route', zorder=2)
 
-    line_kf, = ax_map.plot([], [], color='#00ff88', linewidth=2, label='KF Track', zorder=4)
-    line_ekf, = ax_map.plot([], [], color='#00bfff', linewidth=2, label='EKF Track', zorder=4)
-    line_pf, = ax_map.plot([], [], color='#ee82ee', linewidth=2, label='PF Track', zorder=4)
+    line_kf, = ax_map.plot([], [], color='#00ff88', linewidth=4, linestyle='-', label='KF Track', zorder=6, alpha=0.95)
+    line_ekf, = ax_map.plot([], [], color='#00bfff', linewidth=2.2, linestyle='--', label='EKF Track', zorder=5, alpha=0.95)
+    line_pf, = ax_map.plot([], [], color='#ee82ee', linewidth=1.6, linestyle=':', label='PF Track', zorder=4, alpha=0.95)
 
     car_true, = ax_map.plot([], [], marker=car_marker(0), color='#ffffff', markersize=16,
                              markeredgecolor='#ffcc00', markeredgewidth=1.5, zorder=6, label='Car (true GPS track)')
@@ -395,6 +447,15 @@ def create_iiser_car_simulation(config=IISERMohaliConfig, save_path=None):
     info_text = ax_info.text(0.05, 0.95, '', transform=ax_info.transAxes, fontsize=11, color='#00ff88',
                               verticalalignment='top', fontfamily='monospace',
                               bbox=dict(boxstyle='round', facecolor='#0a0e27', edgecolor='#00ff88', alpha=0.8))
+
+    ax_grid3d.set_facecolor('#0a0e27')
+    fig.patch.set_facecolor('#0a0e27')
+    ax_grid3d.set_title('Adaptive 3D Confidence Grid (around car)', color='#ee82ee', fontweight='bold', fontsize=10)
+    ax_grid3d.set_xlabel('East offset (m)', fontsize=8, color='#888')
+    ax_grid3d.set_ylabel('North offset (m)', fontsize=8, color='#888')
+    ax_grid3d.set_zlabel('Confidence', fontsize=8, color='#888')
+    ax_grid3d.tick_params(colors='#666', labelsize=7)
+    ax_grid3d.set_zlim(0, 1.05)
 
     hist_kf, hist_ekf, hist_pf = [], [], []
     errors_kf, errors_ekf, errors_pf = [], [], []
@@ -447,6 +508,25 @@ def create_iiser_car_simulation(config=IISERMohaliConfig, save_path=None):
             d = to_m(ekf_pos[0] - info['lon'], ekf_pos[1] - info['lat'])
             if d < best_d:
                 nearest, best_d = name, d
+
+        # --- Adaptive 3D confidence grid, rebuilt from the PF's real belief ---
+        XX, YY, ZZ, extent_m, resolution, particle_offsets_m = compute_adaptive_confidence_grid(pf, config)
+        ax_grid3d.cla()
+        ax_grid3d.set_facecolor('#0a0e27')
+        ax_grid3d.plot_surface(XX, YY, ZZ, cmap='plasma', edgecolor='none', alpha=0.9, antialiased=True)
+        ax_grid3d.scatter(particle_offsets_m[:, 0], particle_offsets_m[:, 1],
+                           np.zeros(len(particle_offsets_m)), color='#00ff88', s=3, alpha=0.4, depthshade=False)
+        ax_grid3d.scatter([0], [0], [1.0], color='#ffcc00', s=60, marker='^', depthshade=False)  # car at the peak
+        ax_grid3d.set_xlim(-extent_m, extent_m)
+        ax_grid3d.set_ylim(-extent_m, extent_m)
+        ax_grid3d.set_zlim(0, 1.05)
+        ax_grid3d.set_title(f'Adaptive 3D Confidence Grid  (extent ±{extent_m:.1f}m, res {resolution}x{resolution})',
+                             color='#ee82ee', fontweight='bold', fontsize=10)
+        ax_grid3d.set_xlabel('East offset (m)', fontsize=8, color='#888')
+        ax_grid3d.set_ylabel('North offset (m)', fontsize=8, color='#888')
+        ax_grid3d.set_zlabel('Confidence', fontsize=8, color='#888')
+        ax_grid3d.tick_params(colors='#666', labelsize=7)
+        ax_grid3d.view_init(elev=32, azim=(frame * 0.6) % 360)  # slow cinematic rotation
 
         lap = frame // (total_frames // config.NUM_LAPS) + 1
         mean_kf = np.mean(errors_kf[-10:])
